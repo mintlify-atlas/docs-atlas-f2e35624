@@ -1,0 +1,144 @@
+---
+title: "Changelog"
+description: "Release history for Sussurro, from the initial release through v2.1."
+---
+
+All notable changes to Sussurro are documented here.
+
+---
+
+## v2.1 — 2026-03-11
+
+### Added
+
+**`sussurro-transcribe` companion CLI** — a standalone batch transcription tool that uses the same local Whisper and LLM models as the main daemon. Accepts any audio format `ffmpeg` supports. Build with `make build-transcribe`.
+
+```bash
+sussurro-transcribe -i recording.mp3              # raw Whisper output to stdout
+sussurro-transcribe -i recording.wav -clean       # with LLM cleanup
+sussurro-transcribe -i audio.m4a -o out.txt       # write to file
+sussurro-transcribe -i audio.mp3 -lang en -debug  # force language, verbose
+```
+
+Flags: `-i` (required), `-o`, `-clean`, `-lang`, `-config`, `-debug`. See [CLI flags](/reference/cli-flags) for full reference.
+
+**Lowercase output toggle** — a new `app.lowercase_output` config field (default `false`) forces all transcribed text — including LLM-cleaned output and raw Whisper fallback — to lowercase before injection. The toggle is exposed as a switch in **Settings → Output** and takes effect immediately without a restart.
+
+**Release tooling** — `scripts/package-release-all.sh` builds and bundles both `sussurro` and `sussurro-transcribe` into a single tarball with checksum. `scripts/package-transcribe.sh` packages `sussurro-transcribe` alone.
+
+---
+
+## v2.0 — 2026-03-04
+
+### Added
+
+**Hotkey mode switcher** — a new `hotkey.mode` config field accepts `"push-to-talk"` (default: hold to record, release to transcribe) or `"toggle"` (first press starts recording, second press transcribes). The active mode is applied immediately — no restart required.
+
+**Settings → Global Hotkey → Mode selector** — a dropdown appears below the hotkey display on X11 and macOS. The row is hidden on Wayland, where the hotkey is managed externally. Saving the dropdown writes the new mode to `~/.sussurro/config.yaml` and hot-swaps the callbacks live.
+
+**`SaveHotkeyMode()` config helper** — a line-by-line YAML rewriter that inserts `mode:` after `trigger:` when upgrading configs from versions before 2.0.
+
+---
+
+## v1.9 — 2026-03-03
+
+### Added
+
+**Transcription language selector** — Settings now includes a "Transcription Language" dropdown. Supported options: Auto Detect, English, German, Spanish, French, Portuguese, Russian, Italian. The selection is stored in `models.asr.language` (default `"en"`) and passed to Whisper via `ctx.SetLanguage()` at engine init.
+
+### Fixed
+
+**LLM empty-output fallback** — when Qwen 3 produces only a `<think>…</think>` block with no content, `validateOutput` previously returned `true` for the resulting empty string, causing an empty injection. An explicit `cleaned == ""` guard now falls back to the raw ASR text before reaching `validateOutput`.
+
+---
+
+## v1.8 — 2026-03-02
+
+### Fixed
+
+**Word merging at Whisper segment boundaries** — Whisper splits output into multiple internal segments. These were previously joined with bare string concatenation, causing words at boundaries to fuse (e.g. `"went to"` → `"wentto"`). Each segment is now `TrimSpace`'d, empty segments are dropped, and all parts are joined with `strings.Join(parts, " ")`.
+
+### Build
+
+**Conservative Apple Silicon CPU target** — `whisper.cpp` is now built with `-mcpu=apple-m1` on Darwin/arm64. This selects ARMv8.5-A — the shared baseline for all M-series chips — preventing the compiler from emitting M2/M3-specific instructions (AMX2, SME) that caused `Illegal instruction` crashes on M1 hardware.
+
+**Auto-detecting release packaging** — `scripts/package-release.sh` now auto-detects version (from `internal/version/version.go`), platform (`uname -s`), and architecture (`uname -m`). All three can still be overridden via positional arguments.
+
+---
+
+## v1.7 — 2026-02-27
+
+### Performance
+
+Five targeted hot-path optimizations shipped in this release:
+
+| Optimization | Improvement |
+|-------------|-------------|
+| Lock-free RMS callback dispatch (`atomic.Pointer` instead of `sync.Mutex`) | 2.6× faster on the audio hot-path |
+| Zero-copy byte→float32 conversion (`unsafe.Slice` + single `memmove`) | 40× faster (673 ns → 16.7 ns per 20 ms frame) |
+| `sync.Pool` for per-frame audio buffers (eliminates `make([]byte, …)` per frame) | 7.3× faster, 0 allocs/op |
+| Pre-compiled regexes at package init (five `regexp.MustCompile` calls, not per-call) | 1.8× faster LLM post-processing, 128 → 20 allocs per cleanup |
+| Pre-allocated recording buffer, reset to `[:0]` between recordings | 18.8× faster accumulation, 0 allocs/op |
+
+---
+
+## v1.6 — 2026-02-24
+
+### Added
+
+**macOS overlay blur and border** — the capsule now uses `NSVisualEffectView` (material `HUDWindow`, `NSAppearanceNameVibrantDark`) as a frosted-glass backdrop clipped to the pill shape. A 1.5 px semi-transparent white border is drawn as an inset stroke on both macOS and Linux.
+
+**Model-switch restart banner** — switching the active Whisper model in Settings no longer force-quits the process. Instead, the config is saved and a blue info banner — *"Restart Sussurro to load the new model into memory"* — appears at the bottom of the settings window. The running pipeline is not disrupted.
+
+**In-memory config sync after model switch** — `mgr.cfg.Models.ASR.Path` is updated in memory immediately after `setup.SetActiveModel` writes to disk, fixing a race where `reloadSettings()` would snap the UI back to the previously active model for one frame.
+
+---
+
+## v1.5 — 2026-02-23
+
+### Added
+
+**macOS full overlay UI** — `NSPanel` overlay (Cocoa + CoreVideo `CVDisplayLink`), settings window, system tray, and right-click context menu now all work on macOS. Previously macOS was headless-only.
+
+**Live hotkey reconfiguration** — changing the global hotkey in Settings takes effect immediately via `reinstallOverlayHotkey` on both Linux and macOS. No restart required.
+
+**Linux X11 modifier support** — `alt`/`option` (X11 Mod1) and `super`/`meta`/`cmd` (X11 Mod4) hotkey modifiers now work on Linux.
+
+**macOS modifier aliases** — `super` and `meta` are accepted as aliases for `cmd`/`command` on macOS.
+
+**Hotkey recording modal** — live key-combo preview as keys are held. Finalizes on full key release. Requires at least one non-modifier key. Supports up to 3 simultaneous keys.
+
+**Metal-safe exit on macOS** — `overlay_terminate_macos()` stops `CVDisplayLink` and calls `_exit(0)` to bypass C++ global destructors, preventing a Metal render-encoder assertion from `ggml-metal` on quit.
+
+---
+
+## v1.3 — 2026-02-16
+
+### Changed
+
+**Upgraded LLM model** — the base Qwen 3 model was replaced with the fine-tuned **Qwen 3 Sussurro** model (hosted at [huggingface.co/cesp99/qwen3-sussurro](https://huggingface.co/cesp99/qwen3-sussurro)). This brings improved transcription cleanup accuracy and domain-specific training. Automatic detection and migration runs for users upgrading from versions before v1.3. Setup now displays file sizes for model downloads (Whisper: 488 MB, LLM: 1.28 GB).
+
+---
+
+## v1.2 — 2026-02-14
+
+### Added
+
+- **Full Linux support** with automatic platform detection
+- **Wayland support** via trigger server and UNIX socket (`/run/user/$(id -u)/sussurro.sock`)
+- **Pure-Go clipboard** implementation — no external dependencies on X11
+- Platform-specific hotkey handlers (X11 vs Wayland)
+- Helper script (`scripts/trigger.sh`) for Wayland keyboard shortcuts
+- Graceful shutdown handling (`Ctrl+C` now works correctly)
+
+---
+
+## v1.1 / v1.0 — 2025-02-13
+
+Initial release:
+
+- macOS support with native global hotkeys (CGEventTap)
+- Whisper.cpp integration for ASR
+- LLM-based text cleanup with Qwen 3
+- Configuration system (`~/.sussurro/config.yaml`)
+- First-run setup flow with guided model download

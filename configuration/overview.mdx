@@ -1,0 +1,137 @@
+---
+title: "Configuration overview"
+description: "How Sussurro loads its configuration, where to put your config file, and a full reference for every option."
+---
+
+Sussurro's configuration system is powered by [Viper](https://github.com/spf13/viper). All settings live in a single YAML file, and every value can be overridden with an environment variable.
+
+## Config file lookup order
+
+When Sussurro starts, it searches for a config file in this order and uses the first one it finds:
+
+<Steps>
+  <Step title="The -config flag">
+    If you pass `-config` on the command line, Sussurro uses that file and skips all other lookups.
+
+    ```bash
+    ./sussurro -config /path/to/my-config.yaml
+    ```
+  </Step>
+  <Step title="Current directory">
+    Sussurro looks for `config.yaml` in the directory where the binary is run.
+  </Step>
+  <Step title="Home directory">
+    Sussurro looks for `~/.sussurro/config.yaml`. This is where the first-run setup writes your config.
+  </Step>
+  <Step title="Configs directory">
+    Sussurro looks for `./configs/config.yaml` relative to the binary.
+  </Step>
+  <Step title="Default fallback">
+    If no `config.yaml` is found in any of the above locations, Sussurro repeats the same search for `default.yaml`. The bundled `configs/default.yaml` in the repository serves as the ultimate fallback.
+  </Step>
+</Steps>
+
+<Tip>
+  For most users, the relevant file is `~/.sussurro/config.yaml`. The first-run setup creates it automatically with absolute paths to your downloaded models.
+</Tip>
+
+## Environment variable overrides
+
+Every config value can be overridden with an environment variable. The rules are:
+
+- Prefix: `SUSSURRO_`
+- Nested YAML keys are joined with `_`
+
+```bash
+export SUSSURRO_APP_DEBUG=true
+export SUSSURRO_MODELS_LLM_THREADS=8
+./sussurro
+```
+
+The environment variable takes precedence over the config file for that specific key. All other keys still come from the file.
+
+## Full default config
+
+This is the complete `configs/default.yaml` shipped with Sussurro. Copy it to `~/.sussurro/config.yaml` as a starting point and adjust the model paths to absolute paths on your machine.
+
+```yaml
+app:
+  name: "Sussurro"
+  debug: false
+  log_level: "info"       # debug, info, warn, error
+  lowercase_output: false
+
+audio:
+  sample_rate: 16000
+  channels: 1
+  bit_depth: 16
+  buffer_size: 1024
+  max_duration: "60s"     # 0 for no limit
+
+models:
+  asr:
+    path: "/home/you/.sussurro/models/ggml-small.bin"
+    type: "whisper"
+    threads: 4
+    language: "en"        # BCP-47 code or "auto"
+  llm:
+    path: "/home/you/.sussurro/models/qwen3-sussurro-q4_k_m.gguf"
+    context_size: 32768
+    gpu_layers: 0         # set > 0 for Metal or CUDA
+    threads: 4
+
+hotkey:
+  trigger: "ctrl+shift+space"
+  mode: "push-to-talk"    # push-to-talk or toggle
+
+injection:
+  method: "keyboard"
+```
+
+## Config sections
+
+### app
+
+<ParamField path="app.name" type="string" default="Sussurro">
+  Internal application name. Used in log output and the system tray label.
+</ParamField>
+
+<ParamField path="app.debug" type="boolean" default="false">
+  Enable verbose debug logging. Equivalent to setting `log_level` to `"debug"`. Environment variable: `SUSSURRO_APP_DEBUG`.
+</ParamField>
+
+<ParamField path="app.log_level" type="string" default="info">
+  Log verbosity. Accepted values: `debug`, `info`, `warn`, `error`. Environment variable: `SUSSURRO_APP_LOG_LEVEL`.
+</ParamField>
+
+<ParamField path="app.lowercase_output" type="boolean" default="false">
+  When `true`, all transcribed text is converted to lowercase before injection. Can be toggled from **Settings**. Environment variable: `SUSSURRO_APP_LOWERCASE_OUTPUT`.
+</ParamField>
+
+### audio
+
+<ParamField path="audio.sample_rate" type="number" default="16000">
+  Audio capture sample rate in Hz. Whisper requires 16000 Hz — do not change this unless you know what you are doing.
+</ParamField>
+
+<ParamField path="audio.channels" type="number" default="1">
+  Number of audio channels. Whisper expects mono audio (`1`).
+</ParamField>
+
+<ParamField path="audio.bit_depth" type="number" default="16">
+  PCM bit depth for audio capture.
+</ParamField>
+
+<ParamField path="audio.buffer_size" type="number" default="1024">
+  Audio capture buffer size in frames.
+</ParamField>
+
+<ParamField path="audio.max_duration" type="string" default="60s">
+  Maximum single recording length as a Go duration string (e.g. `"30s"`, `"2m"`). Set to `"0"` to allow recordings of unlimited length. Environment variable: `SUSSURRO_AUDIO_MAX_DURATION`.
+</ParamField>
+
+### injection
+
+<ParamField path="injection.method" type="string" default="keyboard">
+  Text injection method. Currently only `"keyboard"` is supported — Sussurro types the transcribed text using virtual keyboard events.
+</ParamField>

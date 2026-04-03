@@ -1,0 +1,157 @@
+---
+title: "macOS"
+description: "Set up Sussurro on macOS. No extra dependencies required — grant Accessibility permission and launch from a terminal to get started."
+---
+
+## Overview
+
+Sussurro on macOS uses native system APIs throughout: Cocoa for windowing, CoreGraphics for the global hotkey, WKWebView for the settings window, and NSStatusItem for the menu bar icon. No third-party libraries need to be installed.
+
+The only prerequisite is granting **Accessibility permission** so that Sussurro can register a global hotkey via `CGEventTap`.
+
+## No extra dependencies
+
+Unlike Linux, macOS requires no package installation. All components work out of the box:
+
+| Component | macOS implementation |
+|-----------|---------------------|
+| Overlay capsule | NSPanel at NSStatusWindowLevel |
+| Frosted-glass backdrop | NSVisualEffectView |
+| Settings window | WKWebView |
+| System tray icon | NSStatusItem |
+| Global hotkey | CGEventTap |
+
+## Grant Accessibility permission
+
+macOS requires explicit user authorization before any app can listen for keypresses system-wide. Sussurro will prompt you on first launch.
+
+<Steps>
+  <Step title="Launch Sussurro from a terminal">
+    ```bash
+    ./sussurro
+    ```
+
+    macOS will display a dialog asking for Accessibility access.
+  </Step>
+  <Step title="Open Accessibility settings">
+    Click **Open System Settings** in the dialog, or navigate manually to **System Settings → Privacy & Security → Accessibility**.
+  </Step>
+  <Step title="Enable access for Sussurro">
+    Find Sussurro in the list and toggle it **on**.
+  </Step>
+  <Step title="Restart if needed">
+    If the hotkey still does not respond after granting permission, toggle the permission off and back on, then relaunch Sussurro from the terminal.
+  </Step>
+</Steps>
+
+<Warning>
+Without Accessibility permission, `CGEventTap` cannot capture keypresses and the global hotkey will not work. Text injection also requires this permission.
+</Warning>
+
+## Remove macOS quarantine
+
+When you download a binary from the internet, macOS marks it with a quarantine flag that prevents it from running. Remove it from the terminal before launching:
+
+```bash
+xattr -d com.apple.quarantine sussurro 2>/dev/null || true
+```
+
+Run this command once in the directory where you extracted the archive.
+
+## Launch from a terminal
+
+<Warning>
+You must launch Sussurro from a terminal session. Double-clicking the binary or using a `.desktop`-style launcher is not supported — the overlay and tray icon will not appear correctly outside a terminal session.
+</Warning>
+
+```bash
+./sussurro
+```
+
+After the AI models are downloaded on first run, the overlay capsule appears at the bottom-center of your screen.
+
+## Global hotkey
+
+The default hotkey on macOS is **Cmd+Shift+Space**. It is registered via `CGEventTap` and works system-wide across all applications.
+
+### Supported modifiers
+
+| Modifier | Key names |
+|----------|-----------|
+| Control | `ctrl` |
+| Shift | `shift` |
+| Alt / Option | `alt`, `option` |
+| Command | `cmd`, `command`, `super`, `meta` |
+
+Change the hotkey at any time from **Settings → Global Hotkey**. The new binding takes effect immediately — no restart required.
+
+### Hotkey modes
+
+<CardGroup cols={2}>
+  <Card title="Push to Talk" icon="hand">
+    Hold the hotkey to record. Release to stop and transcribe. The default mode on macOS.
+  </Card>
+  <Card title="Toggle" icon="toggle-on">
+    Press once to start recording. Press again to stop and transcribe.
+  </Card>
+</CardGroup>
+
+Switch modes from **Settings → Global Hotkey → Mode**.
+
+## The overlay capsule
+
+The overlay is an NSPanel set to `NSStatusWindowLevel`, which keeps it above full-screen apps and other windows. It uses `NSVisualEffectView` for a frosted-glass backdrop that matches macOS aesthetics.
+
+| State | What you see |
+|-------|-------------|
+| **Idle** | 7 softly pulsing white dots |
+| **Recording** | 7 waveform bars animated by your voice |
+| **Transcribing** | "transcribing" text with a shimmer effect |
+
+Right-click the capsule at any time to open **Settings** or **Quit**.
+
+## System tray
+
+The menu bar icon is a native `NSStatusItem` — no extra packages or system extensions needed. Click it to open Settings or quit Sussurro.
+
+## Open Settings
+
+<CardGroup cols={2}>
+  <Card title="Via menu bar" icon="apple">
+    Click the Sussurro icon in the menu bar and select **Open Settings**.
+  </Card>
+  <Card title="Via overlay" icon="square-cursor">
+    Right-click the overlay capsule at the bottom of your screen and select **Open Settings**.
+  </Card>
+</CardGroup>
+
+The settings window (WKWebView-based) lets you switch Whisper models, select the transcription language, change the global hotkey, and toggle the hotkey mode. All changes take effect immediately.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Hotkey doesn't work after granting Accessibility permission">
+    macOS sometimes requires a permission toggle to fully activate. Go to **System Settings → Privacy & Security → Accessibility**, toggle Sussurro **off**, then **on** again. Quit and relaunch Sussurro from the terminal.
+  </Accordion>
+
+  <Accordion title="Binary won't open — 'cannot be opened because the developer cannot be verified'">
+    Remove the quarantine attribute and try again:
+
+    ```bash
+    xattr -d com.apple.quarantine sussurro 2>/dev/null || true
+    ./sussurro
+    ```
+  </Accordion>
+
+  <Accordion title="Overlay doesn't appear">
+    Make sure you launched Sussurro from a terminal session, not by double-clicking. If the models have not been downloaded yet, follow the prompts in the terminal first.
+  </Accordion>
+
+  <Accordion title="Settings window is blank">
+    WKWebView requires macOS 10.14 or later. If you are on a supported version and the window is still blank, check the terminal output for errors when running Sussurro.
+  </Accordion>
+
+  <Accordion title="No text appears after transcription">
+    Accessibility permission is required for text injection as well as the hotkey. Confirm Sussurro is listed and enabled in **System Settings → Privacy & Security → Accessibility**. Also speak for at least 2 seconds — very short recordings may not produce output.
+  </Accordion>
+</AccordionGroup>

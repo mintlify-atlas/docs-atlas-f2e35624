@@ -1,97 +1,80 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Sussurro — Local Voice-to-Text Dictation"
+description: "A fully local, open-source AI dictation layer for Linux and macOS. Speak naturally, get clean formatted text injected anywhere you can type."
 ---
 
-## Setting up
+Sussurro is a system-wide voice-to-text tool that runs entirely on your machine. Press a hotkey, speak, and your words appear as clean, formatted text in any application — no cloud, no subscriptions, no data leaving your device.
 
-Get your documentation site up and running in minutes.
+It uses **Whisper.cpp** for speech recognition and a fine-tuned **Qwen 3** language model to remove filler words, handle self-corrections, and produce readable output.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get Sussurro running in under 5 minutes
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Installation" icon="download" href="/installation">
+    Install the binary or build from source
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Configuration" icon="sliders" href="/configuration/overview">
+    Customize models, hotkeys, and audio settings
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Platform Setup" icon="display" href="/platform/linux-x11">
+    Platform-specific setup for Linux and macOS
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## How it works
 
-Everything you need to create world-class documentation.
+<Steps>
+  <Step title="Press your hotkey">
+    Hold `Ctrl+Shift+Space` (Linux) or `Cmd+Shift+Space` (macOS). The overlay capsule animates to show recording is active.
+  </Step>
+  <Step title="Speak naturally">
+    Talk as you normally would — filler words, self-corrections, and stutters are handled automatically.
+  </Step>
+  <Step title="Release to transcribe">
+    Release the hotkey. Whisper converts your speech to text, and Qwen 3 cleans it up.
+  </Step>
+  <Step title="Text appears">
+    The cleaned text is injected into whatever application is focused — no copy-paste needed.
+  </Step>
+</Steps>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Key features
 
-## Need inspiration?
+<CardGroup cols={2}>
+  <Card title="Fully local" icon="lock">
+    No data leaves your machine. Whisper.cpp and Qwen 3 run entirely offline.
+  </Card>
+  <Card title="Native overlay UI" icon="window">
+    A pill-shaped capsule shows recording and transcribing state on Linux and macOS.
+  </Card>
+  <Card title="Smart cleanup" icon="wand-magic-sparkles">
+    LLM removes filler words, fixes self-corrections, and prevents hallucinations.
+  </Card>
+  <Card title="System-wide injection" icon="keyboard">
+    Works in any application where you can type — editors, browsers, terminals, chat apps.
+  </Card>
+  <Card title="Flexible hotkeys" icon="key">
+    Push-to-talk or toggle mode. Change the hotkey live from Settings — no restart needed.
+  </Card>
+  <Card title="Wayland support" icon="linux">
+    Full Wayland support via UNIX socket trigger server for GNOME, KDE, Sway, and Hyprland.
+  </Card>
+</CardGroup>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## Explore the docs
+
+<CardGroup cols={2}>
+  <Card title="Wayland setup" icon="arrows-rotate" href="/platform/wayland">
+    Configure hotkeys on Wayland compositors
+  </Card>
+  <Card title="File transcription" icon="file-audio" href="/guides/file-transcription">
+    Batch-transcribe audio files with sussurro-transcribe
+  </Card>
+  <Card title="Headless mode" icon="terminal" href="/guides/headless-mode">
+    Run without the overlay UI for scripting
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/reference/architecture">
+    How the audio pipeline, ASR, and LLM engines work
+  </Card>
+</CardGroup>

@@ -1,0 +1,125 @@
+---
+title: "Hotkey configuration"
+description: "Configure the global hotkey trigger and recording mode (push-to-talk or toggle) for Sussurro."
+---
+
+Sussurro listens for a global hotkey to start and stop recording. You can configure both the key combination and the activation mode from Settings or directly in `config.yaml`.
+
+## Config structure
+
+```yaml
+hotkey:
+  trigger: "ctrl+shift+space"
+  mode: "push-to-talk"        # push-to-talk or toggle
+```
+
+## Hotkey trigger
+
+The `trigger` string is a `+`-separated list of modifiers followed by a key name. Modifiers come first; the non-modifier key comes last.
+
+### Modifier aliases
+
+| Alias(es) | Linux X11 | macOS |
+|---|---|---|
+| `ctrl`, `control` | `Control_L` | `⌃ Control` |
+| `shift` | `Shift_L` | `⇧ Shift` |
+| `alt`, `option` | Mod1 (`Alt_L`) | `⌥ Option` |
+| `cmd`, `command`, `super`, `meta` | Mod4 (`Super_L`) | `⌘ Command` |
+
+### Examples
+
+```yaml
+hotkey:
+  trigger: "ctrl+shift+space"   # default on Linux X11
+```
+
+```yaml
+hotkey:
+  trigger: "cmd+shift+space"    # default on macOS
+```
+
+```yaml
+hotkey:
+  trigger: "alt+shift+f2"       # any platform
+```
+
+```yaml
+hotkey:
+  trigger: "super+space"        # Linux — Super/Windows key
+```
+
+## Recording mode
+
+The `mode` setting controls what happens when you press the hotkey.
+
+<CardGroup cols={2}>
+  <Card title="push-to-talk" icon="hand">
+    Hold the hotkey to record. Release it to stop recording and trigger transcription. This is the default.
+  </Card>
+  <Card title="toggle" icon="toggle-on">
+    Press the hotkey once to start recording. Press it again to stop and trigger transcription.
+  </Card>
+</CardGroup>
+
+<ParamField path="hotkey.trigger" type="string" default="ctrl+shift+space">
+  The key combination that activates recording. Format: modifier(s) then key, joined by `+`. Environment variable: `SUSSURRO_HOTKEY_TRIGGER`.
+</ParamField>
+
+<ParamField path="hotkey.mode" type="string" default="push-to-talk">
+  Recording activation mode. Accepted values: `push-to-talk`, `toggle`. Environment variable: `SUSSURRO_HOTKEY_MODE`.
+</ParamField>
+
+## Platform availability
+
+| Platform | Push-to-talk | Toggle | Mode selector in Settings |
+|---|---|---|---|
+| Linux X11 | Yes | Yes | Visible |
+| macOS | Yes | Yes | Visible |
+| Linux Wayland | — | — | Hidden |
+
+On Wayland, Sussurro cannot install a global hotkey listener directly. You configure a shortcut in your desktop environment that calls the Sussurro socket trigger instead. Because the timing is controlled externally, the mode selector is hidden in the Settings window on Wayland.
+
+<Note>
+  See the [Wayland setup guide](/platform/wayland) for instructions on binding an external shortcut on GNOME, KDE, Sway, and Hyprland.
+</Note>
+
+## Changing the hotkey
+
+### From Settings
+
+<Steps>
+  <Step title="Open Settings">
+    Click the Sussurro icon in the system tray and select **Open Settings**, or right-click the overlay capsule.
+  </Step>
+  <Step title="Go to the Global Hotkey section">
+    Find the **Global Hotkey** section in the Settings window.
+  </Step>
+  <Step title="Record a new hotkey">
+    Click the hotkey field to open the recording modal. Hold up to 3 keys simultaneously. The modal finalises the hotkey when you release all keys. At least one non-modifier key is required.
+  </Step>
+  <Step title="Confirm">
+    The new hotkey takes effect immediately. No restart is needed. The value is written to `~/.sussurro/config.yaml` automatically.
+  </Step>
+</Steps>
+
+<Tip>
+  You can also change the recording mode (push-to-talk vs. toggle) from the same **Global Hotkey** section in Settings. The change also takes effect immediately without a restart.
+</Tip>
+
+### From config.yaml
+
+Edit the `hotkey` section in `~/.sussurro/config.yaml` and restart Sussurro:
+
+```yaml
+hotkey:
+  trigger: "cmd+shift+space"
+  mode: "toggle"
+```
+
+### Live reconfiguration
+
+Hotkey changes made through the Settings UI call `reinstallHotkey()` internally, which unregisters the old hotkey and registers the new one without restarting the application. Changes written directly to the config file take effect on the next launch.
+
+<Warning>
+  Avoid assigning a hotkey that conflicts with a system shortcut or another application's global shortcut. On Linux X11 and macOS, Sussurro will silently fail to register the hotkey if it is already claimed.
+</Warning>

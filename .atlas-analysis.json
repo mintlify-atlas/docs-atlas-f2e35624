@@ -1,0 +1,79 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Sussurro",
+  "projectDescription": "A fully local, open-source voice-to-text tool that acts as a system-wide AI dictation layer, converting speech into clean, formatted text using Whisper.cpp for ASR and a fine-tuned Qwen 3 LLM for cleanup.",
+  "theme": "palm",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Platform Setup",
+            "pages": [
+              "platform/linux-x11",
+              "platform/wayland",
+              "platform/macos"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/overview",
+              "configuration/models",
+              "configuration/hotkeys"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/headless-mode",
+              "guides/file-transcription",
+              "guides/building-from-source"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/architecture",
+              "reference/cli-flags",
+              "reference/dependencies",
+              "reference/troubleshooting",
+              "reference/changelog"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Fully local processing — no data leaves your machine",
+    "Native overlay capsule UI showing recording/transcribing state on Linux and macOS",
+    "Whisper.cpp ASR with Whisper Small or Large v3 Turbo models",
+    "Fine-tuned Qwen 3 LLM for smart cleanup of filler words and self-corrections",
+    "System-wide text injection into any application",
+    "Global hotkey support with Push-to-Talk and Toggle modes",
+    "Wayland support via UNIX socket trigger server",
+    "Settings window with live model switching, language selection, and hotkey reconfiguration",
+    "Headless CLI mode (--no-ui) for scripting and low-resource environments",
+    "Companion sussurro-transcribe CLI for batch audio file transcription"
+  ],
+  "publicApiSurface": [
+    "sussurro (main binary) — flags: --no-ui, --whisper / --wsp, --config, -config",
+    "sussurro-transcribe — flags: -i, -o, -clean, -lang, -config, -debug",
+    "config.yaml: app, audio, models.asr, models.llm, hotkey, injection sections",
+    "SUSSURRO_* environment variable overrides for all config keys",
+    "Wayland UNIX socket: /run/user/<uid>/sussurro.sock (toggle command)"
+  ]
+}

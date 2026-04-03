@@ -1,0 +1,142 @@
+---
+title: "Linux X11"
+description: "Set up Sussurro on Linux with the X11 display server. Covers runtime dependencies, the overlay, global hotkeys, and system tray configuration."
+---
+
+## Overview
+
+On X11, Sussurro works out of the box once runtime dependencies are installed. The global hotkey is registered automatically via `XGrabKey`, and the overlay capsule stays on top of all other windows using `_NET_WM_STATE_ABOVE`. No extra configuration is needed beyond installing the required libraries.
+
+## Install runtime dependencies
+
+Sussurro's overlay, settings window, and system tray require GTK3, WebKit2GTK, and AppIndicator at runtime.
+
+<CodeGroup>
+
+```bash Arch / Manjaro
+sudo pacman -S gtk3 webkit2gtk-4.1 libappindicator-gtk3
+```
+
+```bash Ubuntu / Debian (22.04+)
+sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0 libayatana-appindicator3-1
+```
+
+```bash Fedora (38+)
+sudo dnf install gtk3 webkit2gtk4.1 libappindicator-gtk3
+```
+
+```bash openSUSE
+sudo zypper install libgtk-3-0 libwebkit2gtk-4.1 libappindicator3-1
+```
+
+</CodeGroup>
+
+### Optional: gtk-layer-shell
+
+`gtk-layer-shell` is a Wayland-specific library that enables true wlr-layer-shell overlays. Installing it on X11 is harmless and useful if you ever switch between X11 and Wayland sessions — it lets the same binary use the best overlay method for each session type.
+
+<CodeGroup>
+
+```bash Arch / Manjaro
+sudo pacman -S gtk-layer-shell
+```
+
+```bash Ubuntu / Debian (22.04+)
+sudo apt install libgtk-layer-shell0
+```
+
+</CodeGroup>
+
+## Verify your installation
+
+```bash
+# GTK3
+pkg-config --exists gtk+-3.0 && echo "GTK3: OK" || echo "GTK3: MISSING"
+
+# WebKit2GTK
+pkg-config --exists webkit2gtk-4.1 && echo "WebKit 4.1: OK" || \
+  pkg-config --exists webkit2gtk-4.0 && echo "WebKit 4.0: OK" || echo "WebKit: MISSING"
+
+# gtk-layer-shell (optional)
+pkg-config --exists gtk-layer-shell && echo "Layer shell: OK" || echo "Layer shell: not installed (overlay uses fallback)"
+```
+
+## How the overlay works on X11
+
+When Sussurro starts, a pill-shaped capsule appears at the bottom-center of your screen. It uses `_NET_WM_STATE_ABOVE` to stay on top of other windows — no compositor-specific configuration needed on X11.
+
+| State | What you see |
+|-------|-------------|
+| **Idle** | 7 softly pulsing white dots |
+| **Recording** | 7 waveform bars animated by your voice |
+| **Transcribing** | "transcribing" text with a shimmer effect |
+
+<Note>
+If the overlay appears behind other windows, your compositor may be ignoring `_NET_WM_STATE_ABOVE`. Installing `gtk-layer-shell` and rebuilding from source gives the overlay a dedicated layer-shell slot instead.
+</Note>
+
+## Global hotkey
+
+On X11, Sussurro registers the hotkey system-wide using `XGrabKey`. This happens automatically at startup — no setup required. The default hotkey is **Ctrl+Shift+Space**.
+
+### Supported modifiers
+
+| Modifier | Key names |
+|----------|-----------|
+| Control | `ctrl` |
+| Shift | `shift` |
+| Alt | `alt`, `Mod1` |
+| Super / Meta | `super`, `meta`, `cmd`, `Mod4` |
+
+You can combine up to three modifiers. Change the hotkey at any time from **Settings → Global Hotkey** — the new binding takes effect immediately without restarting Sussurro.
+
+### Hotkey modes
+
+<CardGroup cols={2}>
+  <Card title="Push to Talk" icon="hand">
+    Hold the hotkey to record. Release it to stop recording and begin transcription. Best for short, controlled bursts of dictation.
+  </Card>
+  <Card title="Toggle" icon="toggle-on">
+    Press once to start recording. Press again to stop and transcribe. Better for longer dictation or when holding a key is inconvenient.
+  </Card>
+</CardGroup>
+
+Switch modes from **Settings → Global Hotkey → Mode**. The change takes effect immediately.
+
+## System tray
+
+Sussurro places an icon in the system tray via the AppIndicator/SNI protocol. Click it to open Settings or quit.
+
+<Warning>
+GNOME does not display SNI tray icons by default. You need one of:
+
+- The [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/) GNOME Shell extension
+- `snixembed` running as a systemd user service
+
+If no tray is available, **right-click the overlay capsule** to access Settings and Quit.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Tray icon is missing">
+    On GNOME, the system tray requires the AppIndicator Shell extension or `snixembed`. Install the extension from [extensions.gnome.org](https://extensions.gnome.org/extension/615/appindicator-support/) and log out and back in. Alternatively, right-click the overlay capsule to access all controls.
+  </Accordion>
+  <Accordion title="Overlay appears below other windows">
+    The overlay sets `_NET_WM_STATE_ABOVE` on startup. If your compositor ignores this hint, install `gtk-layer-shell` and rebuild Sussurro from source so it can use the wlr-layer-shell protocol instead.
+
+    ```bash
+    pkg-config --exists gtk-layer-shell && echo "Layer shell: OK" || echo "Layer shell: not installed"
+    ```
+  </Accordion>
+  <Accordion title="Hotkey doesn't work">
+    Another application may have grabbed the same key combination. Open **Settings → Global Hotkey**, choose a different combination, and the new binding activates immediately. Common conflicts: screenshot tools (Shift+Ctrl+PrtSc), clipboard managers, and browser shortcuts.
+  </Accordion>
+  <Accordion title="Settings window is blank or doesn't open">
+    WebKit2GTK is missing or the wrong version. Install `webkit2gtk-4.1` (or `webkit2gtk-4.0` on older distributions).
+
+    ```bash
+    pkg-config --exists webkit2gtk-4.1 && echo "OK" || echo "MISSING"
+    ```
+  </Accordion>
+</AccordionGroup>

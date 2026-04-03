@@ -1,0 +1,190 @@
+---
+title: "File transcription"
+description: "Transcribe audio files from the command line using the same local Whisper and LLM models as the main app."
+---
+
+`sussurro-transcribe` is a standalone CLI tool that transcribes audio files using the same local Whisper ASR and Qwen 3 LLM models that power Sussurro. No internet connection, no cloud API, and no additional model downloads are needed if you already have Sussurro configured.
+
+## Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| Sussurro configured | Shares `~/.sussurro/config.yaml` and model files. Run `./sussurro` at least once to generate the config. |
+| `ffmpeg` on `PATH` | Decodes any audio format to raw PCM before transcription. |
+
+### Install ffmpeg
+
+<Tabs>
+  <Tab title="Arch / Manjaro">
+    ```bash
+    sudo pacman -S ffmpeg
+    ```
+  </Tab>
+  <Tab title="Ubuntu / Debian">
+    ```bash
+    sudo apt install ffmpeg
+    ```
+  </Tab>
+  <Tab title="Fedora">
+    ```bash
+    sudo dnf install ffmpeg
+    ```
+  </Tab>
+  <Tab title="macOS">
+    ```bash
+    brew install ffmpeg
+    ```
+  </Tab>
+</Tabs>
+
+## Install sussurro-transcribe
+
+### Pre-built binary (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cesp99/sussurro/master/scripts/install-transcribe.sh | bash
+```
+
+The script downloads the latest release binary and places it in `/usr/local/bin` (or `~/.local/bin` if you don't have sudo).
+
+### Build from source
+
+```bash
+git clone https://github.com/cesp99/sussurro.git
+cd sussurro
+make deps              # build whisper.cpp + go-llama.cpp (skip if already done)
+make build-transcribe  # → bin/sussurro-transcribe
+```
+
+`make build-transcribe` links only against Whisper and llama — no GTK, WebKit, or AppIndicator dependencies required.
+
+## Usage
+
+```bash
+sussurro-transcribe -i <audio-file> [options]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-i <file>` | *(required)* | Input audio file. Any format ffmpeg supports: MP3, WAV, M4A, OGG, FLAC, WebM, MP4, and more. |
+| `-o <file>` | stdout | Write the transcription to a file instead of printing to stdout. |
+| `-clean` | off | Run LLM cleanup on the raw Whisper output — removes filler words and fixes self-corrections. |
+| `-lang <code>` | from config | Override the transcription language. Examples: `en`, `fr`, `de`, `auto`. |
+| `-config <path>` | `~/.sussurro/config.yaml` | Use a custom configuration file. |
+| `-debug` | off | Print verbose debug output to stderr. |
+
+## Examples
+
+**Transcribe a recording to the terminal:**
+
+```bash
+sussurro-transcribe -i meeting.mp3
+```
+
+**Transcribe and clean up with LLM, save to file:**
+
+```bash
+sussurro-transcribe -i interview.wav -clean -o transcript.txt
+```
+
+**Force English and enable debug output:**
+
+```bash
+sussurro-transcribe -i audio.m4a -lang en -debug
+```
+
+**Batch transcribe a folder of recordings:**
+
+```bash
+for f in recordings/*.mp3; do
+    sussurro-transcribe -i "$f" -o "${f%.mp3}.txt"
+done
+```
+
+**Count words in a voice note:**
+
+```bash
+sussurro-transcribe -i voice-note.ogg | wc -w
+```
+
+**Use a custom config file:**
+
+```bash
+sussurro-transcribe -i audio.mp3 -config ~/my-transcribe-config.yaml
+```
+
+## How it works
+
+<Steps>
+  <Step title="Audio decoding">
+    `ffmpeg` converts the input file to 16 kHz mono 32-bit float PCM — the format Whisper expects. Any container or codec that ffmpeg supports works transparently.
+  </Step>
+  <Step title="ASR transcription">
+    The decoded PCM samples are passed to the Whisper engine (`internal/asr`), the same code path used during live microphone recording.
+  </Step>
+  <Step title="LLM cleanup (optional)">
+    When you pass `-clean`, the raw Whisper output is sent to the LLM engine (`internal/llm`). The model removes filler words, handles self-corrections, and produces clean, readable text.
+  </Step>
+  <Step title="Output">
+    The final text is written to stdout or to the file specified with `-o`.
+  </Step>
+</Steps>
+
+## Supported audio formats
+
+Any format that `ffmpeg` can decode works: MP3, WAV, FLAC, M4A, AAC, OGG, Opus, WebM, MP4 (audio track), and many more. The tool only sees the decoded PCM stream — the container format does not matter.
+
+## Configuration
+
+`sussurro-transcribe` reads the same `~/.sussurro/config.yaml` as the main app. Relevant fields:
+
+```yaml
+models:
+  asr:
+    path: ~/.sussurro/models/ggml-small.bin
+    threads: 4
+    language: en            # overridden by -lang flag
+  llm:
+    path: ~/.sussurro/models/qwen3-sussurro-q4_k_m.gguf
+    threads: 4
+    context_size: 32768
+    gpu_layers: 0
+```
+
+To use a completely separate set of models or settings:
+
+```bash
+sussurro-transcribe -i audio.mp3 -config ~/my-transcribe-config.yaml
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="ffmpeg: command not found">
+    `ffmpeg` is not installed or not on your `PATH`. Install it using the instructions in the [Prerequisites](#prerequisites) section above, then verify with:
+
+    ```bash
+    ffmpeg -version
+    ```
+  </Accordion>
+  <Accordion title="Error: failed to load config">
+    Run `./sussurro` at least once to generate `~/.sussurro/config.yaml`, or point to an existing config file with `-config`:
+
+    ```bash
+    sussurro-transcribe -i audio.mp3 -config /path/to/config.yaml
+    ```
+  </Accordion>
+  <Accordion title="Error: failed to initialize ASR engine">
+    The Whisper model file is missing or the path in `config.yaml` is wrong. Run `./sussurro --whisper` to download models, or update the `models.asr.path` field in your config manually.
+  </Accordion>
+  <Accordion title="Warning: LLM cleanup failed, using raw transcription">
+    The LLM model is unavailable (missing file, out of memory, or similar). The raw Whisper transcription is still returned — `-clean` degrades gracefully. Check that `models.llm.path` in your config points to a valid model file.
+  </Accordion>
+  <Accordion title="Output is empty or very short">
+    - Confirm the audio file plays back correctly and contains audible speech.
+    - Try specifying the language explicitly with `-lang en` (or the actual language of the audio) instead of relying on `auto` detection, which can fail on short clips.
+    - Add `-debug` to see what Whisper receives and outputs internally.
+  </Accordion>
+</AccordionGroup>

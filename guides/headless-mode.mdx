@@ -1,0 +1,162 @@
+---
+title: "Headless mode"
+description: "Run Sussurro without the overlay or system tray — terminal output only."
+---
+
+Headless mode starts Sussurro with the `--no-ui` flag. There is no overlay capsule, no system tray icon, and no settings window. All status output goes directly to your terminal. Everything else — audio capture, ASR, LLM cleanup, and text injection — works exactly as in the full UI build.
+
+## When to use headless mode
+
+<CardGroup cols={2}>
+  <Card title="Scripting and automation" icon="terminal">
+    Integrate voice transcription into shell scripts, pipelines, or automation workflows.
+  </Card>
+  <Card title="Low-resource environments" icon="microchip">
+    Skip GTK, WebKit, and AppIndicator entirely. Useful on minimal Linux installs.
+  </Card>
+  <Card title="Remote servers" icon="server">
+    Run Sussurro over SSH where no display server is available.
+  </Card>
+  <Card title="CI pipelines" icon="gear">
+    Use headless mode for automated testing or batch processing tasks.
+  </Card>
+</CardGroup>
+
+## Start headless mode
+
+```bash
+./sussurro --no-ui
+```
+
+Sussurro prints status lines to the terminal and waits for your hotkey input. Press **Ctrl+C** or send **SIGTERM** to exit cleanly.
+
+<Note>
+  Always launch Sussurro from a terminal session. Double-clicking the binary or launching from an application menu is not supported.
+</Note>
+
+## Runtime dependencies in headless mode
+
+In headless mode on Linux, GTK, WebKit2GTK, and AppIndicator are **not required**. The only runtime dependency on Wayland is `wl-clipboard` for clipboard injection.
+
+| Dependency | UI mode | Headless mode |
+|------------|---------|---------------|
+| GTK 3 | Required | Not required |
+| WebKit2GTK | Required | Not required |
+| AppIndicator | Required | Not required |
+| wl-clipboard | Required (Wayland) | Required (Wayland) |
+
+## Hotkey behavior by platform
+
+### X11 and macOS
+
+On X11 and macOS, global hotkeys work in headless mode exactly as in UI mode via `golang.design/x/hotkey`. Your configured hotkey (default `Ctrl+Shift+Space` on Linux X11, `Cmd+Shift+Space` on macOS) is registered automatically.
+
+The `hotkey.mode` setting in `config.yaml` applies normally:
+
+- **push-to-talk** — hold the hotkey to record, release to transcribe
+- **toggle** — press once to start recording, press again to transcribe
+
+### Wayland
+
+On Wayland, the global hotkey API is unavailable to user-space applications. Sussurro automatically starts a UNIX socket trigger server at:
+
+```
+/run/user/<uid>/sussurro.sock
+```
+
+Bind a keyboard shortcut in your desktop environment to send a command to this socket.
+
+**Manual trigger (for testing):**
+
+```bash
+echo toggle | nc -U /run/user/$(id -u)/sussurro.sock
+```
+
+**GNOME custom shortcut:**
+
+Set the command to:
+
+```bash
+bash -c 'echo toggle | nc -U /run/user/$(id -u)/sussurro.sock'
+```
+
+**Sway / Hyprland config snippet:**
+
+```bash
+# sway: ~/.config/sway/config
+bindsym Ctrl+Shift+Space exec echo toggle | nc -U /run/user/$(id -u)/sussurro.sock
+```
+
+<Info>
+  The UNIX socket trigger server starts automatically whenever Sussurro detects Wayland — both in UI mode and in headless mode. No extra configuration is required beyond binding your DE shortcut.
+</Info>
+
+## Configuration
+
+Headless mode reads the same `~/.sussurro/config.yaml` as the full UI build. All settings apply: model paths, thread counts, language, hotkey trigger, and hotkey mode.
+
+Relevant `config.yaml` fields:
+
+```yaml
+hotkey:
+  trigger: "ctrl+shift+space"   # X11 / macOS only
+  mode: "push-to-talk"          # or "toggle"
+
+app:
+  log_level: "info"             # set to "debug" for verbose output
+```
+
+## Debug logging
+
+Log output goes to the terminal in headless mode. Enable verbose logging in one of two ways:
+
+**Environment variable (one-off):**
+
+```bash
+SUSSURRO_APP_DEBUG=true ./sussurro --no-ui
+```
+
+**Config file (persistent):**
+
+```yaml
+app:
+  log_level: "debug"
+```
+
+With debug logging enabled you can see hotkey events, audio pipeline state, ASR output, and LLM processing steps as they happen.
+
+## Scripting examples
+
+**Wait for Sussurro to finish and check exit code:**
+
+```bash
+./sussurro --no-ui &
+SUSSURRO_PID=$!
+
+# ... do other work ...
+
+kill -TERM $SUSSURRO_PID
+wait $SUSSURRO_PID
+```
+
+**Start headless with a custom config:**
+
+```bash
+./sussurro --no-ui --config ~/my-config.yaml
+```
+
+**Run with debug output redirected to a log file:**
+
+```bash
+SUSSURRO_APP_DEBUG=true ./sussurro --no-ui 2>sussurro-debug.log
+```
+
+## Exiting
+
+Press **Ctrl+C** in the terminal, or send SIGTERM to the process:
+
+```bash
+kill -TERM $(pgrep sussurro)
+```
+
+Sussurro performs a clean shutdown: it stops audio capture, releases the hotkey registration, and closes the UNIX socket (Wayland).

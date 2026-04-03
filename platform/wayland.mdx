@@ -1,0 +1,229 @@
+---
+title: "Linux Wayland"
+description: "Set up Sussurro on Wayland. Because Wayland's security model blocks global hotkeys, you configure a keyboard shortcut in your desktop environment to trigger Sussurro."
+---
+
+## Why Wayland needs extra setup
+
+Wayland's security model prevents any application from listening for keypresses outside its own window. This is intentional — no program can secretly monitor your keyboard. As a result, Sussurro cannot register a global hotkey the way it does on X11.
+
+Instead, you configure **one keyboard shortcut** in your desktop environment that calls a small trigger command. That command sends a message to Sussurro over a Unix socket, telling it to start or stop recording.
+
+<Note>
+To check whether you are running Wayland:
+
+```bash
+echo $XDG_SESSION_TYPE
+```
+
+If the output is `wayland`, follow this guide. If it is `x11`, see [Linux X11 setup](/platform/linux-x11) — hotkeys work automatically there.
+</Note>
+
+## Install runtime dependencies
+
+Before running Sussurro on Wayland, install all required libraries including `wl-clipboard`. Without `wl-clipboard`, Sussurro cannot inject text into other applications.
+
+<CodeGroup>
+
+```bash Arch / Manjaro
+sudo pacman -S gtk3 webkit2gtk-4.1 libappindicator-gtk3 wl-clipboard gtk-layer-shell
+```
+
+```bash Ubuntu / Debian (22.04+)
+sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0 libayatana-appindicator3-1 \
+                 wl-clipboard libgtk-layer-shell0
+```
+
+```bash Fedora (38+)
+sudo dnf install gtk3 webkit2gtk4.1 libappindicator-gtk3 wl-clipboard
+```
+
+```bash openSUSE
+sudo zypper install libgtk-3-0 libwebkit2gtk-4.1 libappindicator3-1 wl-clipboard
+```
+
+</CodeGroup>
+
+<Warning>
+Install `wl-clipboard` **before** running Sussurro for the first time. If it is missing, every transcription attempt will fail with a clipboard error and no text will be injected.
+</Warning>
+
+## Choose a trigger method
+
+There are two ways to trigger Sussurro from a keyboard shortcut. Pick one and use it in all the DE-specific steps below.
+
+<CardGroup cols={2}>
+  <Card title="trigger.sh script (recommended)" icon="file-code">
+    Use the `scripts/trigger.sh` helper that ships with Sussurro. Set the command to the full path of the script.
+
+    ```
+    /path/to/sussurro/scripts/trigger.sh
+    ```
+  </Card>
+  <Card title="Direct socket command" icon="terminal">
+    Send the toggle message directly over the Unix socket. No script file required.
+
+    ```bash
+    sh -c 'echo toggle | nc -U $XDG_RUNTIME_DIR/sussurro.sock'
+    ```
+  </Card>
+</CardGroup>
+
+## One-time DE setup
+
+Configure a custom keyboard shortcut in your desktop environment. Do this once — after setup, the hotkey works every time Sussurro is running.
+
+<AccordionGroup>
+  <Accordion title="GNOME">
+    <Steps>
+      <Step title="Open keyboard shortcuts">
+        Go to **Settings → Keyboard → Keyboard Shortcuts**, scroll to the bottom, and click **View and Customize Shortcuts**.
+      </Step>
+      <Step title="Add a custom shortcut">
+        Click **Custom Shortcuts**, then click **+**.
+      </Step>
+      <Step title="Fill in the details">
+        - **Name:** `Sussurro Voice Input`
+        - **Command:** `/path/to/sussurro/scripts/trigger.sh`
+
+        Click **Set Shortcut** and press `Ctrl+Shift+Space` (or any combination you prefer).
+      </Step>
+      <Step title="Save">
+        Click **Add** to save the shortcut.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="KDE Plasma">
+    <Steps>
+      <Step title="Open custom shortcuts">
+        Go to **System Settings → Shortcuts → Custom Shortcuts**.
+      </Step>
+      <Step title="Create a new global shortcut">
+        Right-click in the empty area and choose **New → Global Shortcut → Command/URL**.
+      </Step>
+      <Step title="Set the trigger">
+        In the **Trigger** tab, click the button and press `Ctrl+Shift+Space`.
+      </Step>
+      <Step title="Set the action">
+        In the **Action** tab, enter the full path to `trigger.sh` or the direct socket command.
+      </Step>
+      <Step title="Apply">
+        Click **Apply** to activate the shortcut.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Sway">
+    Add this line to `~/.config/sway/config`:
+
+    ```
+    bindsym Ctrl+Shift+Space exec /path/to/sussurro/scripts/trigger.sh
+    ```
+
+    Reload Sway to apply:
+
+    ```bash
+    swaymsg reload
+    ```
+  </Accordion>
+
+  <Accordion title="Hyprland">
+    Add this line to `~/.config/hypr/hyprland.conf`:
+
+    ```
+    bind = CTRL SHIFT, Space, exec, /path/to/sussurro/scripts/trigger.sh
+    ```
+
+    Reload Hyprland to apply:
+
+    ```bash
+    hyprctl reload
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Usage
+
+On Wayland, Sussurro always operates in toggle mode: one press starts recording, another press stops it and triggers transcription.
+
+<Steps>
+  <Step title="Launch Sussurro">
+    Start Sussurro from a terminal:
+
+    ```bash
+    ./sussurro
+    ```
+
+    The overlay capsule appears at the bottom of your screen.
+  </Step>
+  <Step title="Start recording">
+    Press your configured shortcut once. The capsule switches to the waveform animation — you are now recording.
+  </Step>
+  <Step title="Speak">
+    Dictate your text. Speak for at least 2 seconds for reliable transcription.
+  </Step>
+  <Step title="Stop and transcribe">
+    Press the shortcut again. The capsule shows "transcribing", then the text appears in your active application.
+  </Step>
+</Steps>
+
+<Info>
+The Push-to-Talk vs Toggle mode selector in Settings is hidden on Wayland — toggle mode is always used because the external shortcut cannot distinguish between key-down and key-up events.
+</Info>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection refused or socket errors">
+    Sussurro must be running before you press the hotkey. Launch it from a terminal first:
+
+    ```bash
+    ./sussurro
+    ```
+
+    If Sussurro crashed or was not started, the socket does not exist and the trigger command will report a connection error.
+  </Accordion>
+
+  <Accordion title="No response when pressing the hotkey">
+    First, confirm the shortcut is registered in your DE. Then test the trigger manually in a terminal while Sussurro is running:
+
+    ```bash
+    echo toggle | nc -U /run/user/$(id -u)/sussurro.sock
+    ```
+
+    If this works in the terminal but the DE shortcut does not, the shortcut command or path is incorrect. Double-check that the path to `trigger.sh` is absolute and the file is executable:
+
+    ```bash
+    chmod +x /path/to/sussurro/scripts/trigger.sh
+    ```
+  </Accordion>
+
+  <Accordion title="clipboard failed error">
+    `wl-clipboard` is missing. Install it:
+
+    <CodeGroup>
+
+    ```bash Arch / Manjaro
+    sudo pacman -S wl-clipboard
+    ```
+
+    ```bash Ubuntu / Debian
+    sudo apt install wl-clipboard
+    ```
+
+    ```bash Fedora
+    sudo dnf install wl-clipboard
+    ```
+
+    ```bash openSUSE
+    sudo zypper install wl-clipboard
+    ```
+
+    </CodeGroup>
+  </Accordion>
+
+  <Accordion title="Want to switch to X11 instead?">
+    Log out of your current session. At the login screen, select an X11 session. Sussurro will automatically register the global hotkey via `XGrabKey` — no manual trigger setup needed.
+  </Accordion>
+</AccordionGroup>

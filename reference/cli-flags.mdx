@@ -1,0 +1,129 @@
+---
+title: "CLI flags"
+description: "Every command-line flag for the sussurro and sussurro-transcribe binaries."
+---
+
+Sussurro ships two binaries: `sussurro` (the main dictation daemon) and `sussurro-transcribe` (the companion batch transcription tool). Both accept a `-config` flag; each has its own set of additional flags described below.
+
+---
+
+## `sussurro`
+
+The main binary. Run it without flags to start the full UI (overlay, settings window, system tray). All flags use the standard Go `flag` package, so both `-flag` and `--flag` forms are accepted.
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `-no-ui` / `--no-ui` | bool | `false` | Run in headless CLI mode — no overlay, no system tray, terminal output only. |
+| `-whisper` / `--whisper` | bool | `false` | Open the interactive Whisper model switcher menu. Downloads the selected model if needed and updates `~/.sussurro/config.yaml`. Exits after completing. |
+| `-wsp` / `--wsp` | bool | `false` | Alias for `-whisper`. |
+| `-config` | string | _(auto-discover)_ | Path to a configuration file. Overrides the default location (`~/.sussurro/config.yaml`). |
+
+<Note>
+  In headless mode (`-no-ui`), `golang.design/x/mainthread` owns the main OS thread so that the global hotkey works correctly on X11 and macOS. In UI mode, `gtk_main` (Linux) or `[NSApp run]` (macOS) owns the main thread instead — so `-no-ui` and UI mode are mutually exclusive at the process level.
+</Note>
+
+### Usage examples
+
+<CodeGroup>
+
+```bash Standard UI mode
+./sussurro
+```
+
+```bash Headless / CLI mode
+./sussurro --no-ui
+```
+
+```bash Custom config path
+./sussurro -config /etc/sussurro/config.yaml
+```
+
+```bash Switch Whisper model interactively
+./sussurro --whisper
+```
+
+```bash Switch Whisper model (alias)
+./sussurro --wsp
+```
+
+```bash Headless with custom config
+./sussurro --no-ui -config ~/.config/sussurro/config.yaml
+```
+
+</CodeGroup>
+
+---
+
+## `sussurro-transcribe`
+
+The companion file transcription CLI. It reads an audio file, transcribes it using the same local Whisper model, and optionally runs LLM cleanup. It requires `ffmpeg` to be installed and on your `PATH` for audio decoding.
+
+Build it with:
+
+```bash
+make build-transcribe
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `-i <file>` | string | _(required)_ | Input audio file. Any format `ffmpeg` supports (MP3, WAV, M4A, OGG, FLAC, etc.). |
+| `-o <file>` | string | stdout | Output text file. If omitted, the transcription is printed to standard output. |
+| `-clean` | bool | `false` | Run LLM cleanup on the raw Whisper output. Removes filler words, fixes grammar, handles self-corrections. Falls back to raw output if the LLM fails. |
+| `-lang <code>` | string | _(from config)_ | Override the ASR language. Examples: `en`, `de`, `fr`, `es`, `pt`, `ru`, `it`, `auto`. Defaults to the value in `models.asr.language` in your config. |
+| `-config <path>` | string | _(auto-discover)_ | Path to a configuration file. Overrides `~/.sussurro/config.yaml`. |
+| `-debug` | bool | `false` | Enable verbose debug output to stderr. |
+
+<Warning>
+  `-i` is required. Running `sussurro-transcribe` without it prints usage and exits with a non-zero status.
+</Warning>
+
+### Usage examples
+
+<CodeGroup>
+
+```bash Raw Whisper output to stdout
+sussurro-transcribe -i recording.mp3
+```
+
+```bash With LLM cleanup
+sussurro-transcribe -i recording.wav -clean
+```
+
+```bash Write output to a file
+sussurro-transcribe -i audio.m4a -o transcription.txt
+```
+
+```bash Force language and enable debug output
+sussurro-transcribe -i audio.mp3 -lang en -debug
+```
+
+```bash Full example: cleanup, French, save to file
+sussurro-transcribe -i meeting.m4a -clean -lang fr -o meeting.txt
+```
+
+```bash Use auto language detection
+sussurro-transcribe -i audio.ogg -lang auto
+```
+
+</CodeGroup>
+
+<Tip>
+  For short clips or clips where language detection is unreliable, pass `-lang en` (or your target language) explicitly instead of relying on `auto`.
+</Tip>
+
+### Language codes
+
+The `-lang` flag accepts the same codes as the Whisper language setting in the Settings window:
+
+| Code | Language |
+|------|----------|
+| `en` | English |
+| `de` | German |
+| `es` | Spanish |
+| `fr` | French |
+| `pt` | Portuguese |
+| `ru` | Russian |
+| `it` | Italian |
+| `auto` | Whisper auto-detection |
+
+Any language code supported by your Whisper model can be passed. Codes unsupported by your model (e.g. passing a non-English code to an English-only model) are logged as warnings — transcription still proceeds.

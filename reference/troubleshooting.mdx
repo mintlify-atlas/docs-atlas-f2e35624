@@ -1,0 +1,198 @@
+---
+title: "Troubleshooting"
+description: "Solutions for common issues with the overlay, hotkeys, text injection, models, and builds."
+---
+
+Find your problem area below. Each section covers the most common causes and the steps to resolve them.
+
+---
+
+<AccordionGroup>
+
+  <Accordion title="Overlay & UI issues">
+
+    **Overlay doesn't appear**
+
+    1. Verify GTK3 is installed:
+       ```bash
+       pkg-config --exists gtk+-3.0 && echo "GTK3: OK" || echo "GTK3: MISSING"
+       ```
+    2. If you are on Wayland without `gtk-layer-shell`, the overlay appears as a regular floating window. Check your compositor's window rules — some compositors may place it below other windows. Install `gtk-layer-shell` and rebuild with `make build` for a proper layer-shell overlay.
+
+    ---
+
+    **Settings window is blank or doesn't open**
+
+    WebKit2GTK is missing or the wrong version. Install the correct package for your distro:
+
+    ```bash
+    # Arch
+    sudo pacman -S webkit2gtk-4.1
+
+    # Ubuntu / Debian
+    sudo apt install libwebkit2gtk-4.1-0
+
+    # Fedora
+    sudo dnf install webkit2gtk4.1
+    ```
+
+    Verify:
+    ```bash
+    pkg-config --exists webkit2gtk-4.1 && echo "OK" || \
+      pkg-config --exists webkit2gtk-4.0 && echo "OK (4.0)" || echo "MISSING"
+    ```
+
+    ---
+
+    **Settings window doesn't open via the tray icon**
+
+    Right-click the overlay capsule and choose **Open Settings** as a fallback. The capsule context menu is always available regardless of tray state.
+
+    ---
+
+    **Tray icon is missing**
+
+    On GNOME, the system tray is not displayed by default. Install the [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/) GNOME Shell extension, or install `snixembed` as an SNI proxy.
+
+    If no tray is available, use the right-click context menu on the capsule to access **Open Settings** and **Quit**.
+
+    ---
+
+    **Overlay appears below other windows on X11**
+
+    The overlay uses `_NET_WM_STATE_ABOVE`. Some compositors ignore this hint. Options:
+
+    - Install `gtk-layer-shell` and rebuild with `make build` — on Wayland, layer-shell takes priority over `_NET_WM_STATE_ABOVE` and guarantees the overlay stays on top.
+    - Check your compositor's window rules for a "always on top" override.
+
+  </Accordion>
+
+  <Accordion title="Hotkey issues">
+
+    **Hotkey doesn't work on X11**
+
+    Another application may have grabbed the same key combination. Change the hotkey in **Settings → Global Hotkey** to one that is not in use. The new hotkey takes effect immediately — no restart required.
+
+    ---
+
+    **Hotkey doesn't work on macOS**
+
+    Sussurro requires Accessibility access to register a CGEventTap. Check and fix it:
+
+    1. Open **System Settings → Privacy & Security → Accessibility**.
+    2. Find Sussurro in the list.
+    3. If it is already listed and enabled, toggle it **off**, then back **on**.
+    4. Quit and relaunch Sussurro.
+
+    <Warning>
+      Toggling the permission while Sussurro is running does not take effect until you relaunch the app.
+    </Warning>
+
+    ---
+
+    **Hotkey doesn't work on Wayland**
+
+    Wayland does not allow applications to register global hotkeys. You must configure a keyboard shortcut in your desktop environment that sends a command to Sussurro's UNIX socket. See [Wayland Setup](/platform/wayland) for per-DE instructions.
+
+    Test the socket manually to confirm Sussurro is running and the socket is available:
+
+    ```bash
+    echo toggle | nc -U /run/user/$(id -u)/sussurro.sock
+    ```
+
+    If that command triggers recording, your socket is working and the issue is with your DE's keyboard shortcut configuration.
+
+  </Accordion>
+
+  <Accordion title="Text injection issues">
+
+    **"clipboard failed" error on Wayland**
+
+    Install `wl-clipboard`. Sussurro requires `wl-copy` to write to the Wayland clipboard:
+
+    ```bash
+    sudo pacman -S wl-clipboard   # Arch / Manjaro
+    sudo apt install wl-clipboard  # Ubuntu / Debian
+    sudo dnf install wl-clipboard  # Fedora
+    sudo zypper install wl-clipboard  # openSUSE
+    ```
+
+    Verify after installing:
+    ```bash
+    which wl-copy && echo "wl-clipboard: OK" || echo "wl-clipboard: MISSING"
+    ```
+
+    ---
+
+    **No text appears after speaking**
+
+    - Speak for at least **2 seconds**. Very short audio clips may not produce output.
+    - Run with `--no-ui` and watch the terminal output for error messages:
+      ```bash
+      ./sussurro --no-ui
+      ```
+    - Make sure the target application is focused and accepts paste input.
+
+    ---
+
+    **Output is empty or very short**
+
+    - Your microphone may be capturing silence. Check that the correct input device is selected in your system audio settings.
+    - For short or quiet clips, try passing `-lang en` (or your target language) explicitly to `sussurro-transcribe` instead of relying on auto-detection. Auto-detection can be unreliable for brief recordings.
+
+  </Accordion>
+
+  <Accordion title="Model issues">
+
+    **ASR model is missing**
+
+    Run the interactive model switcher to download a Whisper model:
+
+    ```bash
+    ./sussurro --whisper
+    ```
+
+    You can also open **Settings** to download and switch models with a live progress bar.
+
+    ---
+
+    **"LLM cleanup failed" — but text still appears**
+
+    This is the expected graceful fallback behavior. When the LLM engine is unavailable or fails, Sussurro returns the raw Whisper transcription rather than producing no output. Check the terminal for details on the underlying LLM error.
+
+    ---
+
+    **Out of memory / system slows down during transcription**
+
+    You may be running a model that exceeds your available RAM. Switch to **Whisper Small** (~488 MB) instead of **Whisper Large v3 Turbo** (~1.62 GB):
+
+    ```bash
+    ./sussurro --whisper
+    ```
+
+    Or open **Settings** and use the model selector.
+
+  </Accordion>
+
+  <Accordion title="Build issues">
+
+    **`pkg-config webkit2gtk-4.0 not found` during build**
+
+    Always use `make build` rather than `go build` directly. The Makefile automatically creates a compatibility shim so that `webkit2gtk-4.1` (available on Arch and newer distros) is used in place of the `4.0` package name that some Go dependencies declare in their CGO directives.
+
+    ```bash
+    make build   # correct
+    go build ./...  # may fail on Linux
+    ```
+
+    ---
+
+    **`appindicator3-0.1 not found` during build**
+
+    Use `make build`. The Makefile auto-detects whether to use the `legacy_appindicator` build tag (for Arch, which uses `appindicator3-0.1`) or the Ayatana backend (Ubuntu, Fedora). Running `go build` directly bypasses this detection.
+
+    For the full build setup, see [Building from source](/guides/building-from-source).
+
+  </Accordion>
+
+</AccordionGroup>

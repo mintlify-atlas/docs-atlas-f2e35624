@@ -1,0 +1,184 @@
+---
+title: "Architecture"
+description: "How Sussurro's audio pipeline, ASR engine, LLM cleanup, and UI layer fit together."
+---
+
+Sussurro is built as a modular pipeline. Each stage is independently initialized and connected through well-defined interfaces, so the headless and UI builds share the same core without duplication.
+
+The overlay UI, settings window, system tray, and global hotkey work on **Linux and macOS**. The `--no-ui` headless mode is available on both platforms. All pipeline and AI engine code is fully cross-platform.
+
+## High-level pipeline
+
+<Steps>
+  <Step title="Hotkey trigger">
+    You press the configured hotkey — `Ctrl+Shift+Space` on Linux X11, `Cmd+Shift+Space` on macOS, or an externally configured shortcut on Wayland. This signals the pipeline to begin recording.
+  </Step>
+  <Step title="Audio capture">
+    The audio engine starts reading PCM frames from your microphone at 16 kHz, mono. RMS levels from each frame are streamed to the overlay in real time to drive the waveform animation.
+  </Step>
+  <Step title="ASR — Whisper.cpp">
+    When you release the hotkey (push-to-talk) or press it a second time (toggle mode), the accumulated audio is passed to Whisper.cpp. It produces a raw transcription that may contain filler words, stutters, or missing punctuation.
+  </Step>
+  <Step title="LLM cleanup — Qwen 3 Sussurro">
+    The raw transcription is sent to the embedded Qwen 3 Sussurro model, which removes filler words, fixes grammar, resolves self-corrections, and produces clean output. `<think>` tags from the model's reasoning chain are stripped before the result is used.
+  </Step>
+  <Step title="Clipboard and text injection">
+    The cleaned text is written to the clipboard and then pasted into the active application via a synthesized paste shortcut.
+  </Step>
+  <Step title="UI notification">
+    Each state transition — idle → recording → transcribing → idle — is pushed to the overlay through the `StateNotifier` interface, driving the capsule animations.
+  </Step>
+</Steps>
+
+---
+
+## Audio engine (`internal/audio`)
+
+The audio engine wraps **malgo** (`github.com/gen2brain/malgo`), the Go bindings for MiniAudio. It captures raw PCM from your default microphone at 16 kHz, mono, which is the sample rate Whisper requires.
+
+The device callback runs on a dedicated audio thread at high frequency. Several hot-path optimizations keep it fast:
+
+<CardGroup cols={2}>
+  <Card title="Zero-copy float32 conversion" icon="bolt">
+    Incoming F32 PCM bytes are reinterpreted as `[]float32` via `unsafe.Slice` plus a single `copy()` (one `memmove`), instead of a per-sample decode loop. This is **40× faster** per frame (673 ns → 16.7 ns).
+  </Card>
+  <Card title="Lock-free RMS dispatch" icon="bolt">
+    The RMS level is dispatched through an `atomic.Pointer[func(float32)]` so the device callback never acquires a lock. This is **2.6× faster** than a mutex-protected read.
+  </Card>
+  <Card title="sync.Pool for frame buffers" icon="bolt">
+    Per-frame byte buffers are recycled through a `sync.Pool`, eliminating hundreds of `make([]byte, …)` allocations per second once the pool reaches steady state. This is **7.3× faster**, 0 allocs/op.
+  </Card>
+  <Card title="Pre-allocated recording buffer" icon="bolt">
+    The recording buffer is pre-allocated to the configured max-duration capacity at startup and reset to `[:0]` between recordings, reusing the same backing array. This is **18.8× faster** accumulation, 0 allocs/op.
+  </Card>
+</CardGroup>
+
+---
+
+## ASR engine (`internal/asr`)
+
+The ASR engine uses the official **Whisper.cpp Go bindings** (`github.com/ggerganov/whisper.cpp`). The default model is `ggml-small.bin`, switchable to Large v3 Turbo from Settings or the `--whisper` flag.
+
+- **Language**: `ctx.SetLanguage()` is called at engine init with the value from `models.asr.language` (default `"en"`). Pass `"auto"` to let Whisper detect the language automatically. Failures — such as passing a language code to an English-only model — are logged as warnings and do not abort startup.
+- **Segment word merging**: Whisper splits output into multiple internal segments. These are `TrimSpace`'d, empty segments are dropped, and all parts are joined with `strings.Join(parts, " ")` to prevent words from fusing at boundaries (e.g. `"went to"` → `"wentto"`).
+
+---
+
+## LLM engine (`internal/llm`)
+
+The LLM engine uses **go-llama.cpp** (`github.com/AshkanYarmoradi/go-llama.cpp`) with the fine-tuned **Qwen 3 Sussurro Q4_K_M** model. The model is purpose-trained for transcription cleanup.
+
+### Prompt engineering
+
+The system prompt instructs the model to act as a text cleanup assistant. The key rules enforced:
+
+- Remove filler words (`umm`, `ah`, `like`, `you know`)
+- Fix grammar and punctuation
+- Output only the corrected text — no explanations
+- Handle speech repairs: `"I want blue... no red"` → `"I want red"`
+
+### Post-processing
+
+After the model produces output, three post-processing steps run:
+
+1. **Thought removal**: A regex strips `<think>...</think>` blocks generated by Qwen's internal reasoning chain.
+2. **Empty output guard**: If stripping the `<think>` block leaves an empty string, the raw Whisper transcription is returned rather than injecting nothing.
+3. **Anti-hallucination validation**: The output is validated against the input with length checks and keyword presence tests to detect model hallucination. If validation fails, the raw transcription is used as fallback.
+
+All five cleanup regexes are compiled once at package init via `regexp.MustCompile` as package-level variables — not on every call. This is **1.8× faster** post-processing, reducing allocations from 128 to 20 per cleanup.
+
+---
+
+## Context provider (`internal/context`)
+
+The context provider detects the currently active application. On macOS it uses native Accessibility APIs. The detected app can be used to tailor the LLM prompt — for example applying "code mode" in a terminal or editor versus "prose mode" in a browser.
+
+---
+
+## Clipboard (`internal/clipboard`)
+
+Stores the cleaned text so it can be pasted reliably into the focused application. On Linux Wayland, this requires `wl-clipboard` to be installed.
+
+---
+
+## Input injector (`internal/injection`)
+
+Uses `github.com/micmonay/keybd_event` to synthesize the platform paste shortcut (`Ctrl+V` on Linux, `Cmd+V` on macOS), injecting the text without requiring the target application to have any special integration.
+
+---
+
+## UI layer
+
+The UI layer runs alongside the pipeline and provides visual feedback without blocking transcription. It is identical in behavior on Linux and macOS.
+
+### Overlay capsule
+
+The overlay is a pill-shaped floating window that stays always on top. It displays three visual states:
+
+| State | Appearance |
+|-------|------------|
+| **Idle** | 7 softly pulsing white dots |
+| **Recording** | 7 waveform bars scaled live by microphone RMS |
+| **Transcribing** | Shimmer-animated "transcribing" label |
+
+Right-clicking the capsule opens a context menu with **Open Settings** and **Quit**.
+
+<Tabs>
+  <Tab title="Linux">
+    Implemented in C/CGO on top of **GTK3** and **Cairo**. On X11, the window uses `_NET_WM_STATE_ABOVE` to stay on top. On Wayland with `gtk-layer-shell` installed, it uses `wlr-layer-shell` for a true compositor overlay. A 1.5 px white border is drawn with Cairo as an inset pill stroke (`rgba(1, 1, 1, 0.30)`).
+
+    The global hotkey on X11 is captured via GDK `XGrabKey` inside `overlay_linux.c`.
+  </Tab>
+  <Tab title="macOS">
+    Implemented in Objective-C using **Cocoa** and **CoreVideo** (`CVDisplayLink`) for smooth 60 fps animation. The window is an `NSPanel` at `NSStatusWindowLevel` with `hidesOnDeactivate=NO` and `NSWindowCollectionBehaviorFullScreenAuxiliary` so it stays visible above full-screen apps. `orderFrontRegardless` is used instead of `makeKeyAndOrderFront` to avoid stealing keyboard focus.
+
+    A frosted-glass backdrop is provided by `NSVisualEffectView` (`NSVisualEffectMaterialHUDWindow`, `NSVisualEffectBlendingModeBehindWindow`, `NSAppearanceNameVibrantDark`) clipped to the pill shape via a `CAShapeLayer`. A 1.5 px white border is drawn as an inset stroke (`rgba(1, 1, 1, 0.25)`) over a dark tint.
+
+    The global hotkey is registered via `golang.design/x/hotkey` (CGEventTap) in a background goroutine after `[NSApp run]` is live.
+  </Tab>
+</Tabs>
+
+### Global hotkey
+
+<CardGroup cols={2}>
+  <Card title="Linux X11" icon="linux">
+    Registered via GDK `XGrabKey`. Supported modifiers: `ctrl`, `shift`, `alt` (X11 Mod1), `super` / `meta` / `cmd` (X11 Mod4).
+  </Card>
+  <Card title="macOS" icon="apple">
+    Registered via `golang.design/x/hotkey` (CGEventTap). Supported modifiers: `ctrl`, `shift`, `alt` / `option`, `cmd` / `command` / `super` / `meta`.
+  </Card>
+</CardGroup>
+
+**Live reconfiguration**: `Manager.reinstallHotkey()` unregisters the current hotkey and registers the new one immediately when you save a new trigger in Settings. No restart required.
+
+**Wayland**: Global hotkeys are not supported by the Wayland security model. Instead, Sussurro starts a UNIX socket trigger server at `/run/user/$(id -u)/sussurro.sock`. You configure a keyboard shortcut in your desktop environment to send `toggle` to this socket.
+
+### Settings window
+
+Built with `github.com/webview/webview_go` — WebKit2GTK on Linux, WKWebView on macOS. HTML, CSS, and JS assets are embedded at compile time; no external files are required at runtime.
+
+JS bindings expose to Go:
+- Model download with live progress bar
+- Hotkey configuration via a recording modal (live key-combo preview; finalizes on full key release)
+- Model switching (writes config and shows a restart banner — the running pipeline is not interrupted)
+- Transcription language selection
+- Hotkey mode selection (push-to-talk or toggle, X11 and macOS only)
+- Lowercase output toggle
+
+On macOS, `NSWindowDelegate` intercepts the close button to hide (not destroy) the window, preserving the WebKit backing store across open/close cycles.
+
+### System tray
+
+Powered by `github.com/getlantern/systray`. Arch Linux uses the `legacy_appindicator` build tag (`appindicator3-0.1`); Ubuntu and Fedora use the Ayatana backend; macOS uses the native `NSStatusItem`. The tray menu provides **Open Settings** and **Quit**.
+
+### Main thread ownership
+
+| Mode | Owner |
+|------|-------|
+| UI mode on Linux | `webview.Run()` → `gtk_main` |
+| UI mode on macOS | `webview.Run()` → `[NSApp run]` |
+| Headless (`--no-ui`) | `golang.design/x/mainthread` — required for hotkey compat on X11 and macOS |
+
+### Process exit
+
+On Linux, exit calls `os.Exit(0)`. On macOS, `overlay_terminate_macos()` stops the `CVDisplayLink`, hides the panel, and then calls `_exit(0)` to skip C++ global destructors. This avoids a Metal render-encoder assertion inside `whisper.cpp`'s `ggml-metal` that fires when the normal `exit()` path runs while Metal objects are still in use.

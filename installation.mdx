@@ -1,0 +1,145 @@
+---
+title: "Installation"
+description: "Install Sussurro via the one-line script, manual download, or build from source."
+---
+
+## One-line installer (recommended)
+
+The install script detects your platform and architecture, downloads the appropriate binary, and places it in `/usr/local/bin` (or `~/.local/bin` if you don't have sudo access):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cesp99/sussurro/master/scripts/install.sh | bash
+```
+
+After install, run `sussurro` from any terminal.
+
+## Install system dependencies (Linux only)
+
+On Linux, Sussurro requires a few system libraries for the overlay UI, settings window, and system tray. macOS needs nothing extra.
+
+<Tabs>
+  <Tab title="Arch / Manjaro">
+    ```bash
+    # Required
+    sudo pacman -S gtk3 webkit2gtk-4.1 libappindicator-gtk3
+
+    # Wayland clipboard (required on Wayland)
+    sudo pacman -S wl-clipboard
+
+    # Optional: true wlr-layer-shell overlay on Wayland
+    sudo pacman -S gtk-layer-shell
+    ```
+  </Tab>
+  <Tab title="Ubuntu / Debian">
+    ```bash
+    # Required
+    sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0 libayatana-appindicator3-1
+
+    # Wayland clipboard
+    sudo apt install wl-clipboard
+
+    # Optional: Wayland layer-shell overlay
+    sudo apt install libgtk-layer-shell0
+    ```
+  </Tab>
+  <Tab title="Fedora">
+    ```bash
+    sudo dnf install gtk3 webkit2gtk4.1 libappindicator-gtk3 wl-clipboard
+    ```
+  </Tab>
+  <Tab title="openSUSE">
+    ```bash
+    sudo zypper install libgtk-3-0 libwebkit2gtk-4.1 libappindicator3-1 wl-clipboard
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+If you only need headless mode (`--no-ui`), no GTK or WebKit packages are required. On Wayland headless, only `wl-clipboard` is needed.
+</Note>
+
+## Manual download
+
+Download the binary directly from [GitHub Releases](https://github.com/cesp99/sussurro/releases):
+
+```bash
+# Extract the archive
+tar -xzf sussurro-*.tar.gz
+cd sussurro-*
+
+# Make executable
+chmod +x sussurro
+
+# macOS only: remove quarantine flag
+xattr -d com.apple.quarantine sussurro 2>/dev/null || true
+
+# Run it
+./sussurro
+```
+
+<Warning>
+Always launch Sussurro from a terminal session. Do not double-click the binary or use a `.desktop` launcher — the overlay and tray icon will not appear correctly outside a terminal.
+</Warning>
+
+## Install sussurro-transcribe
+
+The companion file-transcription tool has its own installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cesp99/sussurro/master/scripts/install-transcribe.sh | bash
+```
+
+This downloads the `sussurro-transcribe` binary and places it in `/usr/local/bin` (or `~/.local/bin`). It requires `ffmpeg` to be installed separately — see [File Transcription](/guides/file-transcription) for details.
+
+## Build from source
+
+If you prefer to compile from source, you need Go 1.24+, CMake, and a C/C++ compiler:
+
+```bash
+git clone https://github.com/cesp99/sussurro.git
+cd sussurro
+make deps    # builds whisper.cpp and llama.cpp static libraries
+make build   # produces bin/sussurro
+```
+
+See the [Building from Source](/guides/building-from-source) guide for full instructions including per-distro build dependencies and troubleshooting.
+
+## First run
+
+On first run, Sussurro creates `~/.sussurro/config.yaml` and prompts you to download the AI models. Choose your Whisper model (Small is recommended to start) — the Qwen 3 Sussurro LLM is always downloaded:
+
+```
+sussurro
+```
+
+After the download completes, the overlay capsule appears at the bottom of your screen and Sussurro is ready to use.
+
+<Tip>
+You can switch the Whisper model at any time via the Settings window or by running `sussurro --whisper`.
+</Tip>
+
+## Verify installation
+
+Check that Sussurro is accessible after install:
+
+```bash
+which sussurro        # should print /usr/local/bin/sussurro or ~/.local/bin/sussurro
+sussurro --help       # prints available flags
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get dictating in under 5 minutes
+  </Card>
+  <Card title="Platform Setup" icon="display" href="/platform/linux-x11">
+    Linux and macOS platform-specific setup
+  </Card>
+  <Card title="Wayland Setup" icon="arrows-rotate" href="/platform/wayland">
+    One-time hotkey configuration for Wayland
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/configuration/overview">
+    Customize models, hotkeys, and audio settings
+  </Card>
+</CardGroup>

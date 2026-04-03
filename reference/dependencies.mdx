@@ -1,0 +1,176 @@
+---
+title: "Dependencies"
+description: "System packages required to run and build Sussurro on Linux and macOS."
+---
+
+This page lists everything you need to install before running or building Sussurro. Runtime and build dependencies are listed separately so you only install what you need.
+
+---
+
+## Runtime dependencies
+
+### macOS
+
+Nothing. Sussurro uses only native macOS frameworks — Cocoa, CoreGraphics, WKWebView, and `NSStatusItem`. No third-party libraries are required at runtime.
+
+<Info>
+  On first run, macOS will prompt you to grant Accessibility access (System Settings → Privacy & Security → Accessibility). This is required for the global hotkey (CGEventTap). If you add Sussurro to the list but hotkeys still don't work, toggle the permission off and on, then relaunch.
+</Info>
+
+### Linux — UI mode (default)
+
+The overlay, settings window, and system tray require the following libraries:
+
+| Library | Purpose | Notes |
+|---------|---------|-------|
+| GTK 3 | Overlay window and UI toolkit | Required |
+| WebKit2GTK 4.1 | Settings window HTML renderer | Required |
+| AppIndicator | System tray icon | Required |
+| gtk-layer-shell | True Wayland overlay | Optional — falls back to floating window without it |
+| wl-clipboard | Clipboard on Wayland | Required on Wayland only |
+
+<Tabs>
+  <Tab title="Arch / Manjaro">
+    ```bash
+    # Required
+    sudo pacman -S gtk3 webkit2gtk-4.1 libappindicator-gtk3
+
+    # Wayland clipboard (required on Wayland)
+    sudo pacman -S wl-clipboard
+
+    # Recommended: true wlr-layer-shell overlay
+    sudo pacman -S gtk-layer-shell
+
+    # X11 optional helpers
+    sudo pacman -S xdotool xorg-xprop
+    ```
+  </Tab>
+  <Tab title="Ubuntu / Debian 22.04+">
+    ```bash
+    # Required
+    sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0 libayatana-appindicator3-1
+
+    # Wayland clipboard
+    sudo apt install wl-clipboard
+
+    # Recommended
+    sudo apt install libgtk-layer-shell0
+
+    # X11 optional
+    sudo apt install xdotool x11-utils
+    ```
+  </Tab>
+  <Tab title="Fedora 38+">
+    ```bash
+    sudo dnf install gtk3 webkit2gtk4.1 libappindicator-gtk3 wl-clipboard
+    ```
+  </Tab>
+  <Tab title="openSUSE">
+    ```bash
+    sudo zypper install libgtk-3-0 libwebkit2gtk-4.1 libappindicator3-1 wl-clipboard
+    ```
+  </Tab>
+</Tabs>
+
+### Linux — headless mode (`--no-ui`)
+
+Only `wl-clipboard` is needed, and only on Wayland. GTK, WebKit, and AppIndicator are not required.
+
+```bash
+sudo pacman -S wl-clipboard   # Arch / Manjaro (Wayland only)
+sudo apt install wl-clipboard  # Ubuntu / Debian (Wayland only)
+```
+
+---
+
+## Build dependencies
+
+These are required when compiling Sussurro from source. Use `make build` rather than `go build` directly — the Makefile handles compatibility shims and platform detection automatically.
+
+### All platforms
+
+- **Go 1.24+**
+- **Make**
+- **CMake 3.15+**
+- **C/C++ compiler** (`gcc` or `clang`)
+- **Git** (for submodule checkout of whisper.cpp and go-llama.cpp)
+
+### macOS
+
+```bash
+xcode-select --install   # Xcode Command Line Tools (provides clang, make, cmake, git)
+# Install Go from https://go.dev/dl/
+```
+
+### Linux
+
+All runtime libraries plus their `-dev` / header packages:
+
+<Tabs>
+  <Tab title="Arch / Manjaro">
+    ```bash
+    sudo pacman -S gtk3 webkit2gtk-4.1 libappindicator-gtk3 base-devel cmake git go
+
+    # Optional: adds wlr-layer-shell support to the overlay
+    sudo pacman -S gtk-layer-shell
+    ```
+  </Tab>
+  <Tab title="Ubuntu / Debian 22.04+">
+    ```bash
+    sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+                     build-essential cmake git golang-go
+
+    # Optional
+    sudo apt install libgtk-layer-shell-dev
+    ```
+  </Tab>
+  <Tab title="Fedora 38+">
+    ```bash
+    sudo dnf install gtk3-devel webkit2gtk4.1-devel libappindicator-gtk3-devel \
+                     gcc gcc-c++ cmake git golang
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  **Arch users**: The `webview_go` dependency declares `webkit2gtk-4.0` in its CGO directives. `make build` automatically creates a compatibility shim so that `webkit2gtk-4.1` (the package available on Arch) is used instead. No manual steps are needed.
+</Note>
+
+---
+
+## Verifying runtime dependencies
+
+Run these commands to confirm the required libraries are installed before launching Sussurro:
+
+```bash
+# Check GTK3
+pkg-config --exists gtk+-3.0 && echo "GTK3: OK" || echo "GTK3: MISSING"
+
+# Check WebKit
+pkg-config --exists webkit2gtk-4.1 && echo "WebKit 4.1: OK" || \
+  pkg-config --exists webkit2gtk-4.0 && echo "WebKit 4.0: OK" || echo "WebKit: MISSING"
+
+# Check layer-shell (optional)
+pkg-config --exists gtk-layer-shell && echo "Layer shell: OK" || \
+  echo "Layer shell: not installed (overlay will use fallback)"
+
+# Check Wayland clipboard
+which wl-copy && echo "wl-clipboard: OK" || echo "wl-clipboard: MISSING"
+```
+
+---
+
+## AppIndicator on GNOME
+
+GNOME does not display system tray icons by default. You have two options:
+
+<CardGroup cols={2}>
+  <Card title="AppIndicator GNOME extension" icon="puzzle-piece" href="https://extensions.gnome.org/extension/615/appindicator-support/">
+    Install the official AppIndicator and KStatusNotifierItem Support extension from the GNOME Extensions site.
+  </Card>
+  <Card title="snixembed" icon="terminal">
+    Install `snixembed` as an alternative SNI proxy if you prefer not to use a GNOME Shell extension.
+  </Card>
+</CardGroup>
+
+If no tray is available, right-click the overlay capsule to access **Open Settings** and **Quit** as a fallback.

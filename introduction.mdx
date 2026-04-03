@@ -1,0 +1,90 @@
+---
+title: "Introduction"
+description: "Sussurro is a fully local, open-source voice-to-text tool that acts as a system-wide AI dictation layer for Linux and macOS."
+---
+
+## What is Sussurro?
+
+Sussurro (Italian for "whisper") is a system-wide dictation tool that converts speech into clean, formatted text and injects it into any application — entirely on your machine. It uses **Whisper.cpp** for automatic speech recognition and a fine-tuned **Qwen 3** language model to clean up the output.
+
+There is no cloud, no subscription, and no data ever leaves your device.
+
+## How it works
+
+When you press the global hotkey, Sussurro captures microphone audio, runs it through Whisper to get a raw transcription, then passes that text through Qwen 3 Sussurro — a fine-tuned model that removes filler words ("um", "uh"), handles self-corrections ("I want blue... no, red" → "I want red"), and applies grammar fixes. The result is written to the clipboard and pasted into the focused application.
+
+A pill-shaped overlay capsule at the bottom of your screen shows the current state: idle, recording, or transcribing.
+
+## Supported platforms
+
+| Platform | Overlay UI | Global hotkey | System tray |
+|----------|-----------|---------------|-------------|
+| Linux X11 | GTK3 + Cairo | XGrabKey (automatic) | AppIndicator |
+| Linux Wayland | GTK3 + layer-shell | External shortcut (DE-configured) | AppIndicator |
+| macOS | Cocoa + CoreVideo | CGEventTap (automatic) | NSStatusItem |
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Fully local" icon="lock">
+    Whisper.cpp and Qwen 3 run entirely on your hardware. No internet connection required after model download.
+  </Card>
+  <Card title="Native overlay UI" icon="window">
+    A frosted-glass pill capsule shows recording state with waveform animation driven by live microphone RMS.
+  </Card>
+  <Card title="Smart LLM cleanup" icon="wand-magic-sparkles">
+    The fine-tuned Qwen 3 Sussurro model removes filler words, fixes self-corrections, and validates output to prevent hallucinations.
+  </Card>
+  <Card title="System-wide injection" icon="keyboard">
+    Works in any application with a text field — editors, browsers, terminals, chat apps, email clients.
+  </Card>
+  <Card title="Flexible hotkey modes" icon="key">
+    Push-to-talk (hold to record, release to transcribe) or toggle (press once to start, press again to stop). Configurable live from Settings.
+  </Card>
+  <Card title="Wayland support" icon="linux">
+    Full Wayland support via UNIX socket trigger server. Bind any shortcut in GNOME, KDE, Sway, or Hyprland.
+  </Card>
+  <Card title="Settings window" icon="gear">
+    Switch Whisper models with live download progress, change transcription language, and reconfigure hotkeys — all without restarting.
+  </Card>
+  <Card title="Headless mode" icon="terminal">
+    Run with `--no-ui` for scripting, servers, and low-resource environments. Full hotkey and Wayland support still works.
+  </Card>
+</CardGroup>
+
+## AI models
+
+Sussurro requires two models, both downloaded on first run:
+
+| Model | Size | Role |
+|-------|------|------|
+| Whisper Small | ~488 MB | Fast speech-to-text (default) |
+| Whisper Large v3 Turbo | ~1.62 GB | Higher accuracy speech-to-text |
+| Qwen 3 Sussurro (Q4_K_M) | ~1.28 GB | Text cleanup — always required |
+
+You can switch Whisper models at any time from the Settings window or by running `sussurro --whisper`.
+
+## Companion tool
+
+**`sussurro-transcribe`** is a standalone CLI for transcribing audio files using the same local models. It accepts any format ffmpeg supports and optionally applies LLM cleanup. See [File Transcription](/guides/file-transcription).
+
+## License
+
+Sussurro is open-source under the [GNU General Public License v3.0](https://github.com/cesp99/sussurro/blob/master/LICENSE).
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Install and start dictating in under 5 minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    All installation methods including building from source
+  </Card>
+  <Card title="Platform Setup" icon="display" href="/platform/linux-x11">
+    Linux X11, Wayland, and macOS platform guides
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/configuration/overview">
+    Customize every aspect of Sussurro
+  </Card>
+</CardGroup>

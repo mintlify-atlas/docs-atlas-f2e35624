@@ -1,0 +1,146 @@
+---
+title: "Model configuration"
+description: "Configure the Whisper ASR model and the Qwen 3 Sussurro LLM, including paths, threading, GPU offload, and transcription language."
+---
+
+Sussurro requires two AI models to run: a Whisper model for speech recognition and the Qwen 3 Sussurro model for text cleanup. Both are configured under the `models` key in your `config.yaml`.
+
+<CardGroup cols={2}>
+  <Card title="ASR — Whisper" icon="microphone">
+    Converts recorded audio to raw text. Choose between Whisper Small (fast) or Large v3 Turbo (accurate).
+  </Card>
+  <Card title="LLM — Qwen 3 Sussurro" icon="wand-magic-sparkles">
+    Cleans up the raw transcript: removes filler words, fixes self-corrections, and prevents hallucinations.
+  </Card>
+</CardGroup>
+
+## Model paths
+
+Both models require absolute paths. The first-run setup writes these paths automatically based on your home directory. If you move the model files, update the paths in `~/.sussurro/config.yaml`.
+
+```yaml
+models:
+  asr:
+    path: "/home/you/.sussurro/models/ggml-small.bin"
+    type: "whisper"
+    threads: 4
+    language: "en"
+  llm:
+    path: "/home/you/.sussurro/models/qwen3-sussurro-q4_k_m.gguf"
+    context_size: 32768
+    gpu_layers: 0
+    threads: 4
+```
+
+## Available models
+
+### Whisper ASR models
+
+Two Whisper models are supported. You choose one during first-run setup, and can switch at any time.
+
+| Model | Filename | Size | Best for |
+|---|---|---|---|
+| Whisper Small | `ggml-small.bin` | 488 MB | Faster transcription, lower RAM |
+| Whisper Large v3 Turbo | `ggml-large-v3-turbo.bin` | 1.62 GB | Higher accuracy, more resource-intensive |
+
+### Qwen 3 Sussurro LLM
+
+| Model | Filename | Size | Notes |
+|---|---|---|---|
+| Qwen 3 Sussurro Q4_K_M | `qwen3-sussurro-q4_k_m.gguf` | ~1.28 GB | Always required — not interchangeable |
+
+The LLM model is not optional. Sussurro requires it for smart text cleanup.
+
+## Switching the Whisper model
+
+### From the Settings UI (recommended)
+
+Open **Settings** (via the system tray or by right-clicking the overlay capsule) and use the model selector. A download progress bar appears if the model needs to be fetched. After switching, a blue restart banner appears in Settings to let you know the change will take full effect on the next launch — the running pipeline is not interrupted mid-session.
+
+### From the command line
+
+```bash
+./sussurro --whisper
+# or the short form:
+./sussurro --wsp
+```
+
+This opens an interactive menu. Select the model you want. If it has not been downloaded yet, Sussurro downloads it automatically. The config at `~/.sussurro/config.yaml` is updated with the new model path.
+
+## ASR config reference
+
+<ParamField path="models.asr.path" type="string" required>
+  Absolute path to the Whisper model `.bin` file. Example: `/home/you/.sussurro/models/ggml-small.bin`.
+</ParamField>
+
+<ParamField path="models.asr.type" type="string" default="whisper">
+  Model backend type. Must be `"whisper"`.
+</ParamField>
+
+<ParamField path="models.asr.threads" type="number" default="4">
+  Number of CPU threads used for Whisper inference. Increase on machines with many cores to reduce transcription latency. Environment variable: `SUSSURRO_MODELS_ASR_THREADS`.
+</ParamField>
+
+<ParamField path="models.asr.language" type="string" default="en">
+  Language hint passed to Whisper. Use a [BCP-47 code](https://github.com/openai/whisper#available-models-and-languages) (e.g. `"en"`, `"de"`, `"fr"`, `"it"`, `"es"`, `"pt"`, `"ru"`) or `"auto"` to let Whisper detect the language automatically. Environment variable: `SUSSURRO_MODELS_ASR_LANGUAGE`.
+</ParamField>
+
+## LLM config reference
+
+<ParamField path="models.llm.path" type="string" required>
+  Absolute path to the Qwen 3 Sussurro `.gguf` file. Example: `/home/you/.sussurro/models/qwen3-sussurro-q4_k_m.gguf`.
+</ParamField>
+
+<ParamField path="models.llm.context_size" type="number" default="32768">
+  Context window size in tokens passed to the LLM. The default matches Qwen 3's native context length. Reduce only if you are severely memory-constrained. Environment variable: `SUSSURRO_MODELS_LLM_CONTEXT_SIZE`.
+</ParamField>
+
+<ParamField path="models.llm.gpu_layers" type="number" default="0">
+  Number of model layers to offload to GPU. `0` runs the model entirely on CPU. Set to a positive integer if Sussurro was compiled with Metal (macOS) or CUDA (Linux) support to accelerate inference. Environment variable: `SUSSURRO_MODELS_LLM_GPU_LAYERS`.
+</ParamField>
+
+<ParamField path="models.llm.threads" type="number" default="4">
+  Number of CPU threads used for LLM inference. Increase on machines with many cores. Environment variable: `SUSSURRO_MODELS_LLM_THREADS`.
+</ParamField>
+
+## Transcription language
+
+The `models.asr.language` value tells Whisper which language to expect in the audio. Setting the wrong language increases error rates.
+
+### Supported values in Settings
+
+The **Settings → Transcription Language** dropdown exposes these options:
+
+| Label | Config value |
+|---|---|
+| Auto Detect | `auto` |
+| English | `en` |
+| German | `de` |
+| Spanish | `es` |
+| French | `fr` |
+| Portuguese | `pt` |
+| Russian | `ru` |
+| Italian | `it` |
+
+Selecting a language in Settings writes the new value to `~/.sussurro/config.yaml` immediately. The change takes effect on the next recording.
+
+### Changing via config or environment
+
+You can set any BCP-47 language code supported by Whisper, not just the ones shown in the Settings dropdown:
+
+```yaml
+models:
+  asr:
+    language: "ja"   # Japanese
+```
+
+Or with an environment variable:
+
+```bash
+export SUSSURRO_MODELS_ASR_LANGUAGE=it
+./sussurro
+```
+
+<Note>
+  Using `"auto"` lets Whisper detect the language from the first few seconds of audio. This adds a small amount of latency and can occasionally misidentify short utterances. Set an explicit language code if you always dictate in one language.
+</Note>
